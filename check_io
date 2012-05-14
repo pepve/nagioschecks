@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Nagios plugin exit codes
+STATE_OK=0
+STATE_WARNING=1
+STATE_CRITICAL=2
+STATE_UNKNOWN=3
+
+if [ "$1" ]; then
+	echo "Usage: $0"
+	exit $STATE_UNKNOWN
+fi
+
+# Locale settings other than ISO may destroy the format by appending am/pm to the time
+
+read SAR_TIME SAR_TPS SAR_RTPS SAR_WTPS SAR_BREADS SAR_BWRTNS <<< `LC_ALL=ISO sar -b | tail -2 | head -1`
+
+KBREADS=`bc -l <<< "scale=2; $SAR_BREADS / 2"`
+KBWRTNS=`bc -l <<< "scale=2; $SAR_BWRTNS / 2"`
+
+echo "OK - $KBREADS kB/s read - $KBWRTNS kB/s written - report from $SAR_TIME|read=${KBREADS}kB wrtn=${KBWRTNS}kB"
+
+exit $STATE_OK
