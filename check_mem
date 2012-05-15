@@ -19,7 +19,10 @@ if [ -z "$WARNING_PC" -o -z "$CRITICAL_PC" ]; then
 fi
 
 # These values are in kB
-`sed -r 'y/()/_ /; s/ *: *([0-9]*).*/=\1/; s/([a-z])([A-Z])/\1_\2/g; s/.*/export MEM_\U\0/' /proc/meminfo`
+`sed -r 'y/()/_ /;
+		s/ *: *([0-9]*).*/=\1/;
+		s/([a-z])([A-Z])/\1_\2/g;
+		s/.*/export MEM_\U\0/' /proc/meminfo`
 
 # Memory usage inclusive buffers and cache
 MEM_USED_INC=$((MEM_MEM_TOTAL - MEM_MEM_FREE))
@@ -28,8 +31,10 @@ MEM_USED_INC=$((MEM_MEM_TOTAL - MEM_MEM_FREE))
 MEM_USED_EXC=$((MEM_USED_INC - MEM_BUFFERS - MEM_CACHED))
 MEM_USED_EXC_PC=$((MEM_USED_EXC * 100 / MEM_MEM_TOTAL))
 
-INFO="$MEM_USED_EXC_PC% used - $((MEM_USED_EXC/1024)) MB ($((MEM_USED_INC/1024)) MB with buffers/cache) of $((MEM_MEM_TOTAL/1024)) MB total"
-PERF_EXC="memUsedExc=${MEM_USED_EXC}kB;$((MEM_MEM_TOTAL * WARNING_PC / 100));$((MEM_MEM_TOTAL * CRITICAL_PC / 100));0;$MEM_MEM_TOTAL"
+INFO="$MEM_USED_EXC_PC% used - $((MEM_USED_EXC/1024)) MB ($((MEM_USED_INC / \
+1024)) MB with buffers/cache) of $((MEM_MEM_TOTAL / 1024)) MB total"
+PERF_EXC="memUsedExc=${MEM_USED_EXC}kB;$((MEM_MEM_TOTAL * WARNING_PC / 100));\
+$((MEM_MEM_TOTAL * CRITICAL_PC / 100));0;$MEM_MEM_TOTAL"
 PERF_INC="memUsedInc=${MEM_USED_INC}kB;;;0;$MEM_MEM_TOTAL"
 
 if [ $MEM_USED_EXC_PC -gt $CRITICAL_PC ]; then
