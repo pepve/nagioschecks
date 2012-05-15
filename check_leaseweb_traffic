@@ -47,11 +47,11 @@ function to_kb() {
 
 # Check a response and then exit if it's bad
 function check_response() {
-	CODE=`xpath -q -e '/api/response/result/@code' <<< "$1" | cut -d '"' -f 2`
+	CODE=`xmlstarlet sel -t -v '/api/response/result/@code' <<< "$1"`
 	
 	if [ "$CODE" != 1000 ]; then
-		echo "Bad response ($CODE): `xpath -q -e \
-				'/api/response/details/text()' <<< "$1"`"
+		echo "Bad response ($CODE): `xmlstarlet sel -t -v \
+				'/api/response/details' <<< "$1"`"
 		exit $STATE_UNKNOWN
 	fi
 }
@@ -73,14 +73,14 @@ fi
 
 API="https://secure.leaseweb.nl/api"
 XPATH_SERVER_ID="/api/response/details/detail\
-/server[reference = '$REFERENCE']/server_pack_id/text()"
+/server[reference = '$REFERENCE']/server_pack_id"
 XPATH_TRAFFIC_OUT="/api/response/details/detail\
-/datatraffic/measurement/node/out/text()"
+/datatraffic/measurement/node/out"
 
 # Fetch server id
 SERVER_LIST=`curl_cached "$API/listserverpacks?aid=$AID" "1 week"`
 check_response "$SERVER_LIST"
-SERVER_ID=`xpath -q -e "$XPATH_SERVER_ID" <<< "$SERVER_LIST"`
+SERVER_ID=`xmlstarlet sel -t -v "$XPATH_SERVER_ID" <<< "$SERVER_LIST"`
 
 if [ -z "$SERVER_ID" ]; then
 	echo "Server reference '$REFERENCE' not found (maybe clear the cache?)"
@@ -98,8 +98,8 @@ check_response "$LAST_7DAYS"
 
 # Compute the current traffic sum, the traffic rate, and the projected end of
 # month traffic sum at this rate
-OUT_NOW=$(to_kb "$(xpath -q -e "$XPATH_TRAFFIC_OUT" <<< "$THIS_MONTH")")
-OUT_RATE=$(echo $(to_kb "$(xpath -q -e "$XPATH_TRAFFIC_OUT" \
+OUT_NOW=$(to_kb "$(xmlstarlet sel -t -v "$XPATH_TRAFFIC_OUT" <<< "$THIS_MONTH")")
+OUT_RATE=$(echo $(to_kb "$(xmlstarlet sel -t -v "$XPATH_TRAFFIC_OUT" \
 		<<< "$LAST_7DAYS")") / 7 | bc)
 OUT_PROJECTED=`echo "$OUT_NOW + ($OUT_RATE * ($(date -d "$(date +%Y-%m-01) + \
 		1 month - 1 day" +%d) - $(date +%d)))" | bc`
