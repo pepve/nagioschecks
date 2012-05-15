@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# Nagios plugin exit codes
+STATE_OK=0
+STATE_WARNING=1
+STATE_CRITICAL=2
+STATE_UNKNOWN=3
+
+# Cache curl results, to reduce our hits on the API
+function curl_cached() {
+	CACHE_FILE=/tmp/curl_cached_`md5sum <<< "$1" | cut -d ' ' -f 1`
+
+	if [ ! -f $CACHE_FILE ] || [ `stat -c %Y $CACHE_FILE` -lt `date -d "$2 ago" +%s` ]; then
+		(umask 0077; curl -s "$1" -o $CACHE_FILE)
+	fi
+
+	cat $CACHE_FILE
+}
+
+# Convert the string '1MB' to the number '1024'
+function to_kb() {
+	read QUANTITY UNIT <<< `echo $1 | sed -n 's/^\([0-9.]*\)[ \t]*\([a-z]*\)$/\1 \L\2/ip'`
+	
+	case $UNIT in
+		tb|t)
+			bc <<< "($QUANTITY * 1024 * 1024 * 1024) / 1"
+			;;
+		gb|g)
+			bc <<< "($QUANTITY * 1024 * 1024) / 1"
+			;;
+		mb|m)
+			bc <<< "($QUANTITY * 1024) / 1"
+			;;
+		kb|k)
+			bc <<< "$QUANTITY / 1"
+			;;
+		b|'')
+			bc <<< "$QUANTITY / 1024"
+			;;
+		*)
+			echo BAD_UNIT
+			;;
+	esac
+}
+
+# Check a response and then exit if it's bad
+function check_response() {
+	CODE=`xpath -q -e '/api/response/result/@code' <<< "$1" | cut -d '"' -f 2`
+	
+	if [ "$CODE" != 1000 ]; then
+		echo "Bad response ($CODE): `xpath -q -e '/api/response/details/text()' <<< "$1"`"
+		exit $STATE_UNKNOWN
+	fi
+}
+
+while getopts "k:r:w:c:" OPT; do
+	case $OPT in
+		k) AID=$OPTARG ;;
+		r) REFERENCE=$OPTARG ;;
+		w) WARN=`to_kb "$OPTARG"` ;;
+		c) CRIT=`to_kb "$OPTARG"` ;;
+	esac
+done
+
+if [ -z "$AID" -o -z "$REFERENCE" -o -z "$WARN" -o -z "$CRIT" ]; then
+	echo "Usage: $0 -k <api key> -r <server reference> -w <warning> -c <critical>"
+	exit $STATE_UNKNOWN
+fi
+
+API="https://secure.leaseweb.nl/api"
+
+# Fetch server id
+SERVER_LIST=`curl_cached "$API/listserverpacks?aid=$AID" "1 week"`
+check_response "$SERVER_LIST"
+SERVER_ID=`xpath -q -e "/api/response/details/detail/server[reference = '$REFERENCE']/server_pack_id/text()" <<< "$SERVER_LIST"`
+
+if [ -z "$SERVER_ID" ]; then
+	echo "Server reference '$REFERENCE' not found (maybe clear the cache?)"
+	exit $STATE_UNKOWN
+fi
+
+# Fetch the traffic from this month and the traffic from the last 7 days
+TRAFFIC_THIS_MONTH=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&date_from=01-$(date +%m-%Y)&date_to=$(date +%d-%m-%Y)" "1 hour"`
+check_response "$TRAFFIC_THIS_MONTH"
+TRAFFIC_LAST_7DAYS=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&date_from=$(date -d '7 days ago' +%d-%m-%Y)&date_to=$(date +%d-%m-%Y)" "1 hour"`
+check_response "$TRAFFIC_LAST_7DAYS"
+
+# Compute the current traffic sum, the traffic rate, and the projected end of  month traffic sum at this rate
+OUT_NOW=$(to_kb "$(xpath -q -e '/api/response/details/detail/datatraffic/measurement/node/out/text()' <<< "$TRAFFIC_THIS_MONTH")")
+OUT_RATE=$(echo $(to_kb "$(xpath -q -e '/api/response/details/detail/datatraffic/measurement/node/out/text()' <<< "$TRAFFIC_LAST_7DAYS")") / 7 | bc)
+OUT_PROJECTED=`echo "$OUT_NOW + ($OUT_RATE * ($(date -d "$(date +%Y-%m-01) + 1 month - 1 day" +%d) - $(date +%d)))" | bc`
+
+INFO="Projected traffic is $((OUT_PROJECTED / 1024)) MB (currently at $((OUT_NOW / 1024)) MB with daily rate of $((OUT_RATE / 1024)) MB)"
+PERF="trafficProjected=${OUT_PROJECTED}kB;$WARN;$CRIT trafficDailyRate=${OUT_RATE}kB trafficCurrentMonth=${OUT_NOW}kB"
+
+if [ ${OUT_PROJECTED%.*} -gt $CRIT ]; then
+	STATE=CRITICAL;
+elif [ ${OUT_PROJECTED%.*} -gt $WARN ]; then
+	STATE=WARNING;
+else
+	STATE=OK;
+fi
+
+echo "$STATE - $INFO|$PERF"
+
+eval exit \$STATE_$STATE
+
