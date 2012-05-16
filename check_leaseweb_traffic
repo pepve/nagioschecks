@@ -48,7 +48,7 @@ function to_kb() {
 	esac
 }
 
-# And the opposite
+# Convert '2456' to '2.4 MB' and '133000' to '130 MB'
 function to_human() {
 	if [ $1 -gt $((10 * 1024 * 1024 * 1024)) ]; then
 		bc -l <<< "scale = 0; print $1 / 1024 / 1024 / 1024, \" TB\""
