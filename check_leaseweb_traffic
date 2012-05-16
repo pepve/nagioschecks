@@ -6,6 +6,9 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
+# Common commands
+XPATH="xmlstarlet sel -t -v"
+
 # Cache curl results, to reduce our hits on the API
 function curl_cached() {
 	CACHE_FILE=/tmp/curl_cached_`md5sum <<< "$1" | cut -d ' ' -f 1`
@@ -45,13 +48,31 @@ function to_kb() {
 	esac
 }
 
+# And the opposite
+function to_human() {
+	if [ $1 -gt $((10 * 1024 * 1024 * 1024)) ]; then
+		bc -l <<< "scale = 0; print $1 / 1024 / 1024 / 1024, \" TB\""
+	elif [ $1 -gt $((1024 * 1024 * 1024)) ]; then
+		bc -l <<< "scale = 1; print $1 / 1024 / 1024 / 1024, \" TB\""
+	elif [ $1 -gt $((10 * 1024 * 1024)) ]; then
+		bc -l <<< "scale = 0; print $1 / 1024 / 1024, \" GB\""
+	elif [ $1 -gt $((1024 * 1024)) ]; then
+		bc -l <<< "scale = 1; print $1 / 1024 / 1024, \" GB\""
+	elif [ $1 -gt $((10 * 1024)) ]; then
+		bc -l <<< "scale = 0; print $1 / 1024, \" MB\""
+	elif [ $1 -gt 1024 ]; then
+		bc -l <<< "scale = 1; print $1 / 1024, \" MB\""
+	else
+		echo $1 kB
+	fi
+}
+
 # Check a response and then exit if it's bad
 function check_response() {
-	CODE=`xmlstarlet sel -t -v '/api/response/result/@code' <<< "$1"`
+	CODE=`$XPATH '/api/response/result/@code' <<< "$1"`
 	
 	if [ "$CODE" != 1000 ]; then
-		echo "Bad response ($CODE): `xmlstarlet sel -t -v \
-				'/api/response/details' <<< "$1"`"
+		echo "Bad response ($CODE): `$XPATH '/api/response/details' <<< "$1"`"
 		exit $STATE_UNKNOWN
 	fi
 }
@@ -71,16 +92,19 @@ if [ -z "$AID" -o -z "$REFERENCE" -o -z "$WARN" -o -z "$CRIT" ]; then
 	exit $STATE_UNKNOWN
 fi
 
+# Note: naming is from the perspective outside of the host, so 'in' is 'received
+# from the host' and 'out' is 'sent to the host'.
+
 API="https://secure.leaseweb.nl/api"
 XPATH_SERVER_ID="/api/response/details/detail\
 /server[reference = '$REFERENCE']/server_pack_id"
-XPATH_TRAFFIC_OUT="/api/response/details/detail\
-/datatraffic/measurement/node/out"
+XPATH_TRAFFIC_IN="/api/response/details/detail\
+/datatraffic/measurement/node/in"
 
 # Fetch server id
 SERVER_LIST=`curl_cached "$API/listserverpacks?aid=$AID" "1 week"`
 check_response "$SERVER_LIST"
-SERVER_ID=`xmlstarlet sel -t -v "$XPATH_SERVER_ID" <<< "$SERVER_LIST"`
+SERVER_ID=`$XPATH "$XPATH_SERVER_ID" <<< "$SERVER_LIST"`
 
 if [ -z "$SERVER_ID" ]; then
 	echo "Server reference '$REFERENCE' not found (maybe clear the cache?)"
@@ -88,30 +112,36 @@ if [ -z "$SERVER_ID" ]; then
 fi
 
 # Fetch the traffic from this month and the traffic from the last 7 days
-THIS_MONTH=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&\
+CUR_MONTH=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&\
 date_from=01-$(date +%m-%Y)&date_to=$(date +%d-%m-%Y)" "1 hour"`
-check_response "$THIS_MONTH"
+check_response "$CUR_MONTH"
+TRAF_CUR_MONTH=$(to_kb "$($XPATH "$XPATH_TRAFFIC_IN" <<< "$CUR_MONTH")")
 
-LAST_7DAYS=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&\
+CUR_DAYS7=`curl_cached "$API/network/get?aid=$AID&server_pack_id=$SERVER_ID&\
 date_from=$(date -d '7 days ago' +%d-%m-%Y)&date_to=$(date +%d-%m-%Y)" "1 hour"`
-check_response "$LAST_7DAYS"
+check_response "$CUR_DAYS7"
+TRAF_CUR_DAYS7=$(to_kb "$($XPATH "$XPATH_TRAFFIC_IN" <<< "$CUR_DAYS7")")
 
-# Compute the current traffic sum, the traffic rate, and the projected end of
-# month traffic sum at this rate
-OUT_NOW=$(to_kb "$(xmlstarlet sel -t -v "$XPATH_TRAFFIC_OUT" <<< "$THIS_MONTH")")
-OUT_RATE=$(echo $(to_kb "$(xmlstarlet sel -t -v "$XPATH_TRAFFIC_OUT" \
-		<<< "$LAST_7DAYS")") / 7 | bc)
-OUT_PROJECTED=`echo "$OUT_NOW + ($OUT_RATE * ($(date -d "$(date +%Y-%m-01) + \
-		1 month - 1 day" +%d) - $(date +%d)))" | bc`
+# Compute the daily traffic rate and the projected end of month traffic sum
+eval `bc -l <<< "
+	current = $TRAF_CUR_MONTH
+	daily = $TRAF_CUR_DAYS7 / 7
+	last_day = $(date -d "$(date +%Y-%m-01) + 1 month - 1 day" +%d)
+	current_day = $(date +%d)
+	current_hour = $(date +%H)
+	hours_to_go = ((last_day - current_day) * 24) + (24 - current_hour)
+	projected = current + ((daily / 24) * hours_to_go)
+	scale = 0
+	print \"TRAF_DAILY=\", daily / 1, \"; TRAF_PROJECTED=\", projected / 1"`
 
-INFO="Projected traffic is $((OUT_PROJECTED / 1024)) MB (currently at \
-$((OUT_NOW / 1024)) MB with daily rate of $((OUT_RATE / 1024)) MB)"
-PERF="trafficProjected=${OUT_PROJECTED}kB;$WARN;$CRIT trafficDailyRate=\
-${OUT_RATE}kB trafficCurrentMonth=${OUT_NOW}kB"
+INFO="Projected traffic is `to_human $TRAF_PROJECTED` (currently at `to_human \
+$TRAF_CUR_MONTH` with daily rate of `to_human $TRAF_DAILY`)"
+PERF="trafficProjected=${TRAF_PROJECTED}kB;$WARN;$CRIT trafficDailyRate=\
+${TRAF_DAILY}kB trafficCurrentMonth=${TRAF_CUR_MONTH}kB"
 
-if [ ${OUT_PROJECTED%.*} -gt $CRIT ]; then
+if [ $TRAF_PROJECTED -gt $CRIT ]; then
 	STATE=CRITICAL;
-elif [ ${OUT_PROJECTED%.*} -gt $WARN ]; then
+elif [ $TRAF_PROJECTED -gt $WARN ]; then
 	STATE=WARNING;
 else
 	STATE=OK;
