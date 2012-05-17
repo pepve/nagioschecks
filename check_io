@@ -6,6 +6,29 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
+# Convert '2456' to '2.5 kB' and '133000' to '133 kB'
+function bytes_to_human() {
+	declare -A UNITS
+	UNITS[TB]=$((1000 * 1000 * 1000 * 1000))
+	UNITS[GB]=$((1000 * 1000 * 1000))
+	UNITS[MB]=$((1000 * 1000))
+	UNITS[kB]=$((1000))
+
+	for UNIT in ${!UNITS[@]}; do
+		NUM=${UNITS[$UNIT]}
+
+		if [ $1 -ge $NUM ]; then
+			test $1 -ge $((10 * NUM))
+			SCALE=$?
+			bc -l <<< "scale = $SCALE; print $1 / $NUM"
+			echo '' $UNIT
+			exit
+		fi
+	done
+
+	echo $1 B
+}
+
 if [ "$1" ]; then
 	echo "Usage: $0"
 	exit $STATE_UNKNOWN
@@ -13,14 +36,14 @@ fi
 
 # Locale settings other than ISO may destroy the format by appending am/pm to
 # the time
+LAST_REPORT=`LC_ALL=ISO sar -b | tail -2 | head -1`
+read SAR_TIME SAR_TPS SAR_RTPS SAR_WTPS SAR_BREADS SAR_BWRTNS <<< $LAST_REPORT
 
-read SAR_TIME SAR_TPS SAR_RTPS SAR_WTPS SAR_BREADS SAR_BWRTNS <<< \
-		`LC_ALL=ISO sar -b | tail -2 | head -1`
+# Convert blocks per second to bytes per second (a block is 512 bytes)
+READ=`bc -l <<< "scale = 0; $SAR_BREADS * 512 / 1"`
+WRTN=`bc -l <<< "scale = 0; $SAR_BWRTNS * 512 / 1"`
 
-KBREADS=`bc -l <<< "scale=2; $SAR_BREADS / 2"`
-KBWRTNS=`bc -l <<< "scale=2; $SAR_BWRTNS / 2"`
-
-echo "OK - $KBREADS kB/s read - $KBWRTNS kB/s written - report from $SAR_TIME|\
-read=${KBREADS}kB wrtn=${KBWRTNS}kB"
+echo "OK - `bytes_to_human $READ`/s read - `bytes_to_human $WRTN`/s written - \
+report from $SAR_TIME|read=${READ}B wrtn=${WRTN}B"
 
 exit $STATE_OK
