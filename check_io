@@ -7,16 +7,24 @@ if [ "$1" ]; then
 	exit $STATE_UNKNOWN
 fi
 
-# Locale settings other than ISO may destroy the format by appending am/pm to
-# the time
-LAST_REPORT=`LC_ALL=ISO sar -b | tail -2 | head -1`
-read SAR_TIME SAR_TPS SAR_RTPS SAR_WTPS SAR_BREADS SAR_BWRTNS <<< $LAST_REPORT
+# Locale settings other than C may destroy the output format of sar by appending
+# " AM" or " PM" to the time, thus causing an extra token.
+LC_TIME=C
+
+OUTPUT=`sar -b | tail -2`
+
+if [ `wc -l <<< "$OUTPUT"` -lt 2 ]; then
+	ALT=`ls -tr1 /var/log/sysstat/sa?? | tail -2 | head -1`
+	OUTPUT=`sar -b -f $ALT | tail -2`
+fi
+
+STATS=($OUTPUT)
 
 # Convert blocks per second to bytes per second (a block is 512 bytes)
-READ=`bc -l <<< "scale = 0; $SAR_BREADS * 512 / 1"`
-WRTN=`bc -l <<< "scale = 0; $SAR_BWRTNS * 512 / 1"`
+READ=`bc -l <<< "scale = 0; ${STATS[4]} * 512 / 1"`
+WRTN=`bc -l <<< "scale = 0; ${STATS[5]} * 512 / 1"`
 
 echo "OK - `bytes_to_human $READ`/s read - `bytes_to_human $WRTN`/s written - \
-report from $SAR_TIME|read=${READ}B wrtn=${WRTN}B"
+report from ${STATS[0]}${ALT:+ (${ALT##*/})}|read=${READ}B wrtn=${WRTN}B"
 
 exit $STATE_OK
