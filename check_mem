@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# Nagios plugin exit codes
-STATE_OK=0
-STATE_WARNING=1
-STATE_CRITICAL=2
-STATE_UNKNOWN=3
+. lib.sh
 
 while getopts "c:w:" OPT; do
 	case $OPT in
@@ -32,10 +28,9 @@ MEM_USED_INC=$((MEM_MEM_TOTAL - MEM_MEM_FREE))
 MEM_USED_EXC=$((MEM_USED_INC - MEM_BUFFERS - MEM_CACHED))
 MEM_USED_EXC_PC=$((MEM_USED_EXC * 100 / MEM_MEM_TOTAL))
 
-MIB=$((1024 * 1024))
-
-INFO="$MEM_USED_EXC_PC% used - $((MEM_USED_EXC / MIB)) MiB ($((MEM_USED_INC / \
-MIB)) MiB with buffers/cache) of $((MEM_MEM_TOTAL / MIB)) MiB total"
+INFO="$MEM_USED_EXC_PC% used - `bytes_to_human_bi $MEM_USED_EXC` \
+(`bytes_to_human_bi $MEM_USED_INC ` with buffers/cache) of \
+`bytes_to_human_bi $MEM_MEM_TOTAL` total"
 PERF_EXC="memUsedExc=${MEM_USED_EXC}B;$((MEM_MEM_TOTAL * WARNING_PC / 100));\
 $((MEM_MEM_TOTAL * CRITICAL_PC / 100));0;$MEM_MEM_TOTAL"
 PERF_INC="memUsedInc=${MEM_USED_INC}B;;;0;$MEM_MEM_TOTAL"

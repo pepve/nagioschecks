@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# Nagios plugin exit codes
-STATE_OK=0
-STATE_WARNING=1
-STATE_CRITICAL=2
-STATE_UNKNOWN=3
+. lib.sh
 
 if [ -z "$1" -o "$2" ]; then
 	echo "Usage: $0 <interface>"
@@ -17,7 +13,11 @@ fi
 read SAR_TIME SAR_IFACE SAR_RXPCK SAR_TXPCK SAR_RXKB SAR_TXKB SAR_DISCARD <<< \
 		`LC_ALL=ISO sar -n DEV | grep $1 | tail -2 | head -1`
 
-echo "OK - $SAR_RXKB kB/s received - $SAR_TXKB kB/s sent - report from \
-$SAR_TIME|rx=${SAR_RXKB}kB tx=${SAR_TXKB}kB"
+# Convert kB/s to B/s, sar reports these numbers in 1000 byte kilobytes
+RX=`bc -l <<< "scale = 0; $SAR_RXKB * 1000 / 1"`
+TX=`bc -l <<< "scale = 0; $SAR_TXKB * 1000 / 1"`
+
+echo "OK - `bytes_to_human $RX`/s received - `bytes_to_human $TX`/s sent - \
+report from $SAR_TIME|rx=${RX}B tx=${TX}B"
 
 exit $STATE_OK
