@@ -14,7 +14,7 @@ LC_TIME=C
 OUTPUT=`sar -b | tail -2`
 
 if [ `wc -l <<< "$OUTPUT"` -lt 2 ]; then
-	ALT=`ls -tr1 /var/log/sysstat/sa?? | tail -2 | head -1`
+	ALT=`ls -tr1 /var/log/{sysstat,sa}/sa?? | tail -2 | head -1`
 	OUTPUT=`sar -b -f $ALT | tail -2`
 fi
 
