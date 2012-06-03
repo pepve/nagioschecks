@@ -33,7 +33,7 @@ SWAP_USED=$((SWAP_TOTAL - SWAP_FREE))
 REST=$((USED - SRECLAIMABLE))
 
 INFO="$USED_PC% used - $(bytes_to_human_bi $USED) ($(bytes_to_human_bi $REST) \
-without reclaimable slab, $(bytes_to_human_bi $USED_TOTAL) with buffers/cache) \
+excl. reclaimable slab, $(bytes_to_human_bi $USED_TOTAL) incl. buffers/cache) \
 of $(bytes_to_human_bi $MEM_TOTAL) total - $(bytes_to_human_bi $COMMITTED_AS) \
 committed"
 PERF="rest=${REST}B sReclaimable=${SRECLAIMABLE}B buffers=${BUFFERS}B \
