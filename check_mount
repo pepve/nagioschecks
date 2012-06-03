@@ -1,0 +1,58 @@
+#!/bin/bash
+
+. lib.sh
+
+while getopts "m:c:w:" OPT; do
+	case $OPT in
+		m) MOUNT=$OPTARG ;;
+		w) WARNING_PERC=$OPTARG ;;
+		c) CRITICAL_PERC=$OPTARG ;;
+	esac
+done
+
+if [ -z "$MOUNT" -o -z "$WARNING_PERC" -o -z "$CRITICAL_PERC" ]; then
+	echo "Usage: $0 -m <mount point> -w <warning percentage>" \
+			"-c <critical percentage>"
+	exit $STATE_UNKNOWN
+fi
+
+# First check to see if it's mounted
+if [ -z "$(awk '$2 == "'$MOUNT'" { print }' /proc/mounts)" ]; then
+	echo CRITICAL - Not mounted: $MOUNT
+	exit $STATE_CRITICAL
+fi
+
+read AVAILABLE_BL TOTAL_BL FREE_BL BS <<< $(stat -fc '%a %b %f %S' $MOUNT)
+
+# Multiply the reported block counts by the fundamental block size to get the
+# values in bytes.
+AVAILABLE=$((AVAILABLE_BL * BS))
+TOTAL=$((TOTAL_BL * BS))
+FREE=$((FREE_BL * BS))
+
+# Compute some other useful values and the main 'fullness' percentage. We use
+# full to mean there is no available space left, in other words: less than the
+# amount of reserved blocks is free on the file system. It is the same
+# percentage df reports as 'Use%' (but truncated instead of rounded).
+USED=$((TOTAL - FREE))
+RESERVED=$((FREE - AVAILABLE))
+USABLE=$((TOTAL - RESERVED))
+FULLNESS_PERC=$((100 * USED / USABLE))
+
+INFO="$FULLNESS_PERC% full, $(bytes_to_human_bi $USED) used, \
+$(bytes_to_human_bi $AVAILABLE) available - filesystem: \
+$(bytes_to_human_bi $RESERVED) reserved, $(bytes_to_human_bi $USABLE) usable"
+PERF="used=${USED}B;$((USABLE * WARNING_PERC / 100));\
+$((USABLE * CRITICAL_PERC / 100)) usable=${USABLE}B total=${TOTAL}B"
+
+if [ $FULLNESS_PERC -gt $CRITICAL_PERC ]; then
+	STATE="CRITICAL";
+elif [ $FULLNESS_PERC -gt $WARNING_PERC ]; then
+	STATE="WARNING";
+else
+	STATE="OK";
+fi
+
+echo "$STATE - $INFO|$PERF"
+
+eval exit \$STATE_$STATE
