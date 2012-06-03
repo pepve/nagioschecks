@@ -23,6 +23,9 @@ eval "$(sed -r '
 		s/.*/\U\0/
 		' /proc/meminfo)"
 
+# Some systems don't have these values, default them
+SRECLAIMABLE=${SRECLAIMABLE:-0}
+
 # The idiomatic 'used memory' computation
 USED=$((MEM_TOTAL - MEM_FREE - BUFFERS - CACHED))
 USED_PC=$((100 * USED / MEM_TOTAL))
