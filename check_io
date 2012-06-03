@@ -2,30 +2,30 @@
 
 . lib.sh
 
-if [ "$1" ]; then
-	echo "Usage: $0"
+if [ -z "$1" -o "$2" ]; then
+	echo "Usage: $0 <device>"
 	exit $STATE_UNKNOWN
 fi
 
-# Locale settings other than C may destroy the output format of sar by appending
-# " AM" or " PM" to the time, thus causing an extra token.
-LC_TIME=C
+DEV=$1
+STATE=/var/lib/nagioschecks/check_io_$DEV
 
-OUTPUT=`sar -b | tail -2`
-
-if [ `wc -l <<< "$OUTPUT"` -lt 2 ]; then
-	ALT=`shopt -s nullglob; ls -tr1 /var/log/{sysstat,sa}/sa?? | \
-			tail -2 | head -1`
-	OUTPUT=`sar -b -f $ALT | tail -2`
+if [ ! -f $STATE ]; then
+	cat /sys/block/$DEV/stat > $STATE || exit 1
+	echo "OK - State initialized on first call, now call again"
+	exit $STATE_OK
 fi
 
-STATS=($OUTPUT)
+LAST=($(mtime_cat $STATE))
+cat /sys/block/$DEV/stat > $STATE
+CURRENT=($(mtime_cat $STATE))
 
-# Convert blocks per second to bytes per second (a block is 512 bytes)
-READ=`bc -l <<< "scale = 0; ${STATS[4]} * 512 / 1"`
-WRTN=`bc -l <<< "scale = 0; ${STATS[5]} * 512 / 1"`
+TIME=$((${CURRENT[0]} - ${LAST[0]}))
+READ=$(((${CURRENT[3]} - ${LAST[3]}) * 512 / TIME))
+WRTN=$(((${CURRENT[7]} - ${LAST[7]}) * 512 / TIME))
 
-echo "OK - `bytes_to_human $READ`/s read - `bytes_to_human $WRTN`/s written - \
-report from ${STATS[0]}${ALT:+ (${ALT##*/})}|read=${READ}B wrtn=${WRTN}B"
+echo "OK - $(bytes_to_human $READ)/s read - $(bytes_to_human $WRTN)/ written - \
+averaged over $((TIME / 60)):$(printf %02d $((TIME % 60))) minutes|\
+read=${READ}B wrtn=${WRTN}B"
 
 exit $STATE_OK

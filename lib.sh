@@ -65,3 +65,9 @@ function bytes_to_human_impl() {
 
 	echo ${BC[0]} ${UNITS[${BC[1]}]}
 }
+
+# Echo the mtime and the contents of the file argument
+function mtime_cat() {
+	stat -c %Y $1
+	cat $1
+}

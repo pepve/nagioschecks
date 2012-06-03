@@ -7,25 +7,25 @@ if [ -z "$1" -o "$2" ]; then
 	exit $STATE_UNKNOWN
 fi
 
-# Locale settings other than C may destroy the output format of sar by appending
-# " AM" or " PM" to the time, thus causing an extra token.
-LC_TIME=C
+INTERFACE=$1
+STATE=/var/lib/nagioschecks/check_if_$INTERFACE
 
-OUTPUT=`sar -n DEV | grep $1 | tail -2`
-
-if [ `wc -l <<< "$OUTPUT"` -lt 2 ]; then
-	ALT=`shopt -s nullglob; ls -tr1 /var/log/{sysstat,sa}/sa?? | \
-			tail -2 | head -1`
-	OUTPUT=`sar -n DEV -f $ALT | grep $1 | tail -2`
+if [ ! -f $STATE ]; then
+	cat /sys/class/net/$INTERFACE/statistics/{r,t}x_bytes > $STATE || exit 1
+	echo "OK - State initialized on first call, now call again"
+	exit $STATE_OK
 fi
 
-STATS=($OUTPUT)
+LAST=($(mtime_cat $STATE))
+cat /sys/class/net/$INTERFACE/statistics/{r,t}x_bytes > $STATE
+CURRENT=($(mtime_cat $STATE))
 
-# Convert kB/s to B/s, sar reports these numbers in 1000 byte kilobytes
-RX=`bc -l <<< "scale = 0; ${STATS[4]} * 1000 / 1"`
-TX=`bc -l <<< "scale = 0; ${STATS[5]} * 1000 / 1"`
+TIME=$((${CURRENT[0]} - ${LAST[0]}))
+RX=$(((${CURRENT[1]} - ${LAST[1]}) / TIME))
+TX=$(((${CURRENT[2]} - ${LAST[2]}) / TIME))
 
-echo "OK - `bytes_to_human $RX`/s received - `bytes_to_human $TX`/s sent - \
-report from ${STATS[0]}${ALT:+ (${ALT##*/})}|rx=${RX}B tx=${TX}B"
+echo "OK - $(bytes_to_human $RX)/s received - $(bytes_to_human $TX)/ sent - \
+averaged over $((TIME / 60)):$(printf %02d $((TIME % 60))) minutes|\
+rx=${RX}B tx=${TX}B"
 
 exit $STATE_OK
