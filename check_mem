@@ -16,33 +16,39 @@ fi
 
 # The values from /proc/meminfo are in KiB (even though the output prints kB),
 # convert them to B to prevent ambiguity later on, and insert them as variables.
-eval "`sed -r 'y/()/_ /;
-		s/ *: *([0-9]*).*/=$((\1 * 1024))/;
-		s/([a-z])([A-Z])/\1_\2/g;
-		s/.*/MEM_\U\0/' /proc/meminfo`"
+eval "$(sed -r '
+		y/()/_ /
+		s/ *: *([0-9]*).*/=$((\1 * 1024))/
+		s/([a-z])([A-Z])/\1_\2/g
+		s/.*/\U\0/
+		' /proc/meminfo)"
 
-# Memory usage inclusive buffers and cache
-MEM_USED_INC=$((MEM_MEM_TOTAL - MEM_MEM_FREE))
+# The idiomatic 'used memory' computation
+USED=$((MEM_TOTAL - MEM_FREE - BUFFERS - CACHED))
+USED_PC=$((100 * USED / MEM_TOTAL))
 
-# Memory usage exclusive buffers and cache ('real' usage)
-MEM_USED_EXC=$((MEM_USED_INC - MEM_BUFFERS - MEM_CACHED))
-MEM_USED_EXC_PC=$((MEM_USED_EXC * 100 / MEM_MEM_TOTAL))
+# And some more components for reporting purposes
+USED_TOTAL=$((MEM_TOTAL - MEM_FREE))
+SWAP_USED=$((SWAP_TOTAL - SWAP_FREE))
+REST=$((USED - SRECLAIMABLE))
 
-INFO="$MEM_USED_EXC_PC% used - `bytes_to_human_bi $MEM_USED_EXC` \
-(`bytes_to_human_bi $MEM_USED_INC ` with buffers/cache) of \
-`bytes_to_human_bi $MEM_MEM_TOTAL` total"
-PERF_EXC="memUsedExc=${MEM_USED_EXC}B;$((MEM_MEM_TOTAL * WARNING_PC / 100));\
-$((MEM_MEM_TOTAL * CRITICAL_PC / 100));0;$MEM_MEM_TOTAL"
-PERF_INC="memUsedInc=${MEM_USED_INC}B;;;0;$MEM_MEM_TOTAL"
+INFO="$USED_PC% used - $(bytes_to_human_bi $USED) ($(bytes_to_human_bi $REST) \
+without reclaimable slab, $(bytes_to_human_bi $USED_TOTAL) with buffers/cache) \
+of $(bytes_to_human_bi $MEM_TOTAL) total - $(bytes_to_human_bi $COMMITTED_AS) \
+committed"
+PERF="rest=${REST}B sReclaimable=${SRECLAIMABLE}B buffers=${BUFFERS}B \
+cached=${CACHED}B free=${MEM_FREE}B swap=${SWAP_USED}B used=${USED}B;\
+$((MEM_TOTAL * WARNING_PC / 100));$((MEM_TOTAL * CRITICAL_PC / 100)) \
+committed=${COMMITTED_AS}B"
 
-if [ $MEM_USED_EXC_PC -gt $CRITICAL_PC ]; then
+if [ $USED_PC -gt $CRITICAL_PC ]; then
 	STATE="CRITICAL";
-elif [ $MEM_USED_EXC_PC -gt $WARNING_PC ]; then
+elif [ $USED_PC -gt $WARNING_PC ]; then
 	STATE="WARNING";
 else
 	STATE="OK";
 fi
 
-echo "$STATE - $INFO|$PERF_EXC $PERF_INC"
+echo "$STATE - $INFO|$PERF"
 
 eval exit \$STATE_$STATE
