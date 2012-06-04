@@ -24,7 +24,7 @@ TIME=$((${CURRENT[0]} - ${LAST[0]}))
 RX=$(((${CURRENT[1]} - ${LAST[1]}) / TIME))
 TX=$(((${CURRENT[2]} - ${LAST[2]}) / TIME))
 
-echo "OK - $(bytes_to_human $RX)/s received - $(bytes_to_human $TX)/ sent - \
+echo "OK - $(bytes_to_human $RX)/s received - $(bytes_to_human $TX)/s sent - \
 averaged over $((TIME / 60)):$(printf %02d $((TIME % 60))) minutes|\
 rx=${RX}B tx=${TX}B"
 

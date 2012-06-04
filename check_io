@@ -24,7 +24,7 @@ TIME=$((${CURRENT[0]} - ${LAST[0]}))
 READ=$(((${CURRENT[3]} - ${LAST[3]}) * 512 / TIME))
 WRTN=$(((${CURRENT[7]} - ${LAST[7]}) * 512 / TIME))
 
-echo "OK - $(bytes_to_human $READ)/s read - $(bytes_to_human $WRTN)/ written - \
+echo "OK - $(bytes_to_human $READ)/s read - $(bytes_to_human $WRTN)/s written - \
 averaged over $((TIME / 60)):$(printf %02d $((TIME % 60))) minutes|\
 read=${READ}B wrtn=${WRTN}B"
 
