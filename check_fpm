@@ -1,0 +1,45 @@
+#!/bin/bash
+
+. lib.sh
+
+HOST="localhost:9000"
+URL="/status"
+
+while getopts "h:u:" OPT; do
+	case $OPT in
+		h) HOST=$OPTARG ;;
+		u) URL=$OPTARG ;;
+	esac
+done
+
+RS=$(REQUEST_METHOD=GET SCRIPT_NAME=$URL SCRIPT_FILENAME=$URL QUERY_STRING=xml \
+		cgi-fcgi -bind -connect $HOST 2>/dev/null)
+
+if [[ $? != 0 ]]; then
+	echo "CRITICAL - Failed to connect to PHP-FPM"
+	exit $STATE_CRITICAL
+fi
+
+STATUS=$(sed -n '1,/^\r$/{/^Status: /{s///;s/^\([0-9]*\).*/\1/p}}' <<< "$RS")
+
+if [[ $STATUS && $STATUS != 200 ]]; then
+	echo "CRITICAL - Status code of PHP-FPM response is $STATUS"
+	exit $STATE_CRITICAL
+fi
+
+VARS=$(sed '1,/^\r$/d' <<< "$RS" | xmlstarlet sel -t -m '/status/*' \
+		-v 'name()' -o = -v . -n 2>/dev/null)
+
+if [[ $? != 0 ]]; then
+	echo "CRITICAL - Could not parse PHP-FPM response"
+	exit $STATE_CRITICAL
+fi
+
+eval $(sed 'y/-/_/;s/[^=]*/\U\0/' <<< "$VARS")
+
+echo "OK - up $((START_SINCE / 86400)) days - \
+accepted $ACCEPTED_CONN connections|\
+queue=$LISTEN_QUEUE queueMax=$MAX_LISTEN_QUEUE queueLen=$LISTEN_QUEUE_LEN \
+idle=$IDLE_PROCESSES active=$ACTIVE_PROCESSES total=$TOTAL_PROCESSES"
+
+exit $STATE_OK
