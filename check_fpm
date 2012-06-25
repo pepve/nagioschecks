@@ -38,8 +38,8 @@ fi
 eval $(sed 'y/-/_/;s/[^=]*/\U\0/' <<< "$VARS")
 
 echo "OK - up $((START_SINCE / 86400)) days - \
-accepted $ACCEPTED_CONN connections|\
-queue=$LISTEN_QUEUE queueMax=$MAX_LISTEN_QUEUE queueLen=$LISTEN_QUEUE_LEN \
-idle=$IDLE_PROCESSES active=$ACTIVE_PROCESSES total=$TOTAL_PROCESSES"
+accepted $ACCEPTED_CONN connections - \
+max. $MAX_LISTEN_QUEUE connections queued of $LISTEN_QUEUE_LEN queue length|\
+queue=$LISTEN_QUEUE idle=$IDLE_PROCESSES active=$ACTIVE_PROCESSES"
 
 exit $STATE_OK
