@@ -69,7 +69,7 @@ function bytes_to_human_impl() {
 # Convert 1 MB to 1000000, 1 MiB to 1048576, etc.
 function human_to_bytes() {
 	read QUANTITY UNIT <<< $(echo "$@" |
-			sed -rn 's/^([0-9]+(.[0-9]+)?)\s*([a-z]+)?$/\1 \L\3/ip')
+			sed -rn 's/^([0-9.]+)\s*([a-z]+)?$/\1 \L\2/ip')
 
 	[ "$QUANTITY" ] || return 1
 
