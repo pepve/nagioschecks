@@ -66,6 +66,48 @@ function bytes_to_human_impl() {
 	echo ${BC[0]} ${UNITS[${BC[1]}]}
 }
 
+# Convert 1 MB to 1000000, 1 MiB to 1048576, etc.
+function human_to_bytes() {
+	read QUANTITY UNIT <<< $(echo "$@" |
+			sed -rn 's/^([0-9]+(.[0-9]+)?)\s*([a-z]+)?$/\1 \L\3/ip')
+
+	[ "$QUANTITY" ] || return 1
+
+	case $UNIT in
+		tb|t)
+			bc <<< "$QUANTITY * 1000 * 1000 * 1000 * 1000 / 1"
+			;;
+		gb|g)
+			bc <<< "$QUANTITY * 1000 * 1000 * 1000 / 1"
+			;;
+		mb|m)
+			bc <<< "$QUANTITY * 1000 * 1000 / 1"
+			;;
+		kb|k)
+			bc <<< "$QUANTITY * 1000 / 1"
+			;;
+		tib)
+			bc <<< "$QUANTITY * 1024 * 1024 * 1024 * 1024 / 1"
+			;;
+		gib)
+			bc <<< "$QUANTITY * 1024 * 1024 * 1024 / 1"
+			;;
+		mib)
+			bc <<< "$QUANTITY * 1024 * 1024 / 1"
+			;;
+		kib)
+			bc <<< "$QUANTITY * 1024 / 1"
+			;;
+		b|'')
+			bc <<< "$QUANTITY / 1"
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
+
 # Echo the mtime and the contents of the file argument
 function mtime_cat() {
 	stat -c %Y $1

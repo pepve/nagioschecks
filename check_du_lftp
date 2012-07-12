@@ -1,0 +1,35 @@
+#!/bin/bash
+
+. lib.sh
+
+while getopts "u:w:c:" OPT; do
+	case $OPT in
+		u) URL=$OPTARG ;;
+		w) WARNING_HUMAN=$OPTARG ;;
+		c) CRITICAL_HUMAN=$OPTARG ;;
+	esac
+done
+
+if [ -z "$URL" -o -z "$WARNING_HUMAN" -o -z "$CRITICAL_HUMAN" ]; then
+	echo "Usage: $0 -u <lftp url> -w <warning size> -c <critical size>"
+	exit $STATE_UNKNOWN
+fi
+
+WARNING=$(human_to_bytes $WARNING_HUMAN)
+CRITICAL=$(human_to_bytes $CRITICAL_HUMAN)
+USED=$(lftp -c "open $URL; du -sb" | cut -f 1)
+
+INFO="$(bytes_to_human_bi $USED) used (warning at \
+$(bytes_to_human_bi $WARNING), critical at $(bytes_to_human_bi $CRITICAL))"
+
+if [ $USED -ge $CRITICAL ]; then
+	STATE="CRITICAL";
+elif [ $USED -ge $WARNING ]; then
+	STATE="WARNING";
+else
+	STATE="OK";
+fi
+
+echo "$STATE - $INFO"
+
+eval exit \$STATE_$STATE

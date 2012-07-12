@@ -8,5 +8,7 @@ What's here:
 - `check_if` also doesn't check anything, it returns bytes received and sent for an interface since the last invocation. `/sys/class/net/*/statistics/*` is used as the source.
 - `check_fpm` checks if a PHP-FPM pool is responsive. The number of idle and active processes and the queue (maximum) length are reported. It requires `xmlstarlet` and the `cgi-fcgi` binary (package fcgi on EPEL, libfcgi0ldbl on Debian).
 - `check_leaseweb_traffic` uses the Leaseweb API to calculate a projected end-of-month traffic quantity, and checks that for the given levels. It reports the projected quantity, the traffic for the current month, and the daily traffic averaged over the last seven days. This is obviously only useful if you have hosts at Leaseweb. The script requires `curl` and `xmlstarlet`.
+- `check_du_lftp` checks disk usage through lftp for any supported url. Supports warning and critical thresholds defined like 100 MB or 1.2 Gib. It (obviously) depends on `lftp`.
+- `check_backup` opens a location through lftp and checks if a file exists, and optionally also if it's too old or too small. And it again depends on `lftp`.
 
 All of the checks require `bash` and `bc`.

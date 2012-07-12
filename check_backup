@@ -1,0 +1,59 @@
+#!/bin/bash
+
+. lib.sh
+
+while getopts "u:f:a:s:" OPT; do
+	case $OPT in
+		u) URL=$OPTARG ;;
+		f) FILE=$OPTARG ;;
+		a) MAX_AGE_HUMAN=$OPTARG ;;
+		s) MIN_SIZE_HUMAN=$OPTARG ;;
+	esac
+done
+
+if [ -z "$URL" -o -z "$FILE" ]; then
+	echo "Usage: $0 -u <lftp url> -f <file> [-a <maximum age>]" \
+			"[-s <minimum size>]"
+	exit $STATE_UNKNOWN
+fi
+
+MIN_MTIME=$(date -d "-$MAX_AGE_HUMAN" +%s)
+MIN_SIZE=$(human_to_bytes $MIN_SIZE_HUMAN)
+
+LIST=$(lftp -c "open $URL
+		cls --size --block-size=1 --date --time-style=%s $FILE")
+
+SIZE=$(echo $LIST | cut -d ' ' -f 1)
+MTIME=$(echo $LIST | cut -d ' ' -f 2)
+
+if [[ $LIST ]]; then
+	STATE="OK"
+	INFO="Backup found"
+
+	if [[ $MAX_AGE_HUMAN ]]; then
+		if [[ $MTIME -lt $MIN_MTIME ]]; then
+			STATE="CRITICAL"
+			INFO="$INFO - older than $MAX_AGE_HUMAN"
+			INFO="$INFO: $((($(date +%s) - MTIME) / 3600)) hours"
+		else
+			INFO="$INFO - young enough: $((($(date +%s) - MTIME) / 3600)) hours"
+		fi
+	fi
+
+	if [[ $MIN_SIZE_HUMAN ]]; then
+		if [[ $SIZE -lt $MIN_SIZE ]]; then
+			STATE="CRITICAL"
+			INFO="$INFO - smaller than $(bytes_to_human_bi $MIN_SIZE)"
+			INFO="$INFO: $(bytes_to_human_bi $SIZE)"
+		else
+			INFO="$INFO - big enough: $(bytes_to_human_bi $SIZE)"
+		fi
+	fi
+else
+	STATE="CRITICAL"
+	INFO="Backup not found"
+fi
+
+echo "$STATE - $INFO"
+
+eval exit \$STATE_$STATE
