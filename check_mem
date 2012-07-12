@@ -44,9 +44,9 @@ cached=${CACHED}B free=${MEM_FREE}B swap=${SWAP_USED}B used=${USED}B;\
 $((MEM_TOTAL * WARNING_PC / 100));$((MEM_TOTAL * CRITICAL_PC / 100)) \
 committed=${COMMITTED_AS}B"
 
-if [ $USED_PC -gt $CRITICAL_PC ]; then
+if [ $USED_PC -ge $CRITICAL_PC ]; then
 	STATE="CRITICAL";
-elif [ $USED_PC -gt $WARNING_PC ]; then
+elif [ $USED_PC -ge $WARNING_PC ]; then
 	STATE="WARNING";
 else
 	STATE="OK";

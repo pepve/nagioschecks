@@ -45,9 +45,9 @@ $(bytes_to_human_bi $RESERVED) reserved, $(bytes_to_human_bi $USABLE) usable"
 PERF="used=${USED}B;$((USABLE * WARNING_PERC / 100));\
 $((USABLE * CRITICAL_PERC / 100)) usable=${USABLE}B total=${TOTAL}B"
 
-if [ $FULLNESS_PERC -gt $CRITICAL_PERC ]; then
+if [ $FULLNESS_PERC -ge $CRITICAL_PERC ]; then
 	STATE="CRITICAL";
-elif [ $FULLNESS_PERC -gt $WARNING_PERC ]; then
+elif [ $FULLNESS_PERC -ge $WARNING_PERC ]; then
 	STATE="WARNING";
 else
 	STATE="OK";
