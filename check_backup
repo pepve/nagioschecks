@@ -21,7 +21,7 @@ MIN_MTIME=$(date -d "-$MAX_AGE_HUMAN" +%s)
 MIN_SIZE=$(human_to_bytes $MIN_SIZE_HUMAN)
 
 LIST=$(lftp -c "open $URL
-		cls --size --block-size=1 --date --time-style=%s $FILE")
+		cls --size --block-size=1 --date --time-style=%s $FILE" 2>/dev/null)
 
 SIZE=$(echo $LIST | cut -d ' ' -f 1)
 MTIME=$(echo $LIST | cut -d ' ' -f 2)
