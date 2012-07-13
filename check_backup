@@ -17,6 +17,8 @@ if [ -z "$URL" -o -z "$FILE" ]; then
 	exit $STATE_UNKNOWN
 fi
 
+set_home
+
 MIN_MTIME=$(date -d "-$MAX_AGE_HUMAN" +%s)
 MIN_SIZE=$(human_to_bytes $MIN_SIZE_HUMAN)
 

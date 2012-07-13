@@ -107,6 +107,12 @@ function human_to_bytes() {
 	esac
 }
 
+# Force $HOME to be set
+function set_home() {
+	if [[ -z $HOME ]]; then
+		export HOME=$(awk -F : '$1 == "'`whoami`'" { print $6 }' /etc/passwd)
+	fi
+}
 
 # Echo the mtime and the contents of the file argument
 function mtime_cat() {
