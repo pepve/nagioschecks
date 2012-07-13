@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. lib.sh
+. $(dirname $0)/lib.sh
 
 # Common commands
 XPATH="xmlstarlet sel -t -v"

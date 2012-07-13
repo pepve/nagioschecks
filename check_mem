@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. lib.sh
+. $(dirname $0)/lib.sh
 
 while getopts "c:w:" OPT; do
 	case $OPT in
