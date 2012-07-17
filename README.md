@@ -10,5 +10,6 @@ What's here:
 - `check_leaseweb_traffic` uses the Leaseweb API to calculate a projected end-of-month traffic quantity, and checks that for the given levels. It reports the projected quantity, the traffic for the current month, and the daily traffic averaged over the last seven days. This is obviously only useful if you have hosts at Leaseweb. The script requires `curl` and `xmlstarlet`.
 - `check_du_lftp` checks disk usage through lftp for any supported url. Supports warning and critical thresholds defined like 100 MB or 1.2 Gib. It (obviously) depends on `lftp`.
 - `check_backup` opens a location through lftp and checks if a file exists, and optionally also if it's too old or too small. And it again depends on `lftp`.
+- `check_redis` checks if Redis is alive and reports its statistics, some of them (hits, misses, etc.) averaged since the last invocation (to hits per second, misses per second, etc.).
 
 All of the checks require `bash` and `bc`.

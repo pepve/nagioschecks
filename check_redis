@@ -1,0 +1,94 @@
+#!/bin/bash
+
+. $(dirname $0)/lib.sh
+
+# Quick function to calculate and format rates from counters.
+function per_second() {
+	eval PREV=\$PREV_$1
+	eval CUR=\$CUR_$1
+	bc -l <<< "r=($CUR-${PREV:-0})/$SECONDS;scale=23-length(r);r/1" 2>/dev/null
+}
+
+# Defaults
+HOST="localhost"
+PORT="6379"
+DB="0"
+
+while getopts "h:p:s:a:" OPT; do
+	case $OPT in
+		h) HOST=$OPTARG ;;
+		p) PORT=$OPTARG ;;
+		s) SOCKET=$OPTARG ;;
+		a) PASSWORD=$OPTARG ;;
+		n) DB=$OPTARG ;;
+	esac
+done
+
+# If a socket is provided it overrides the host and port options.
+if [[ $SOCKET ]]; then
+	OPTS="-s $SOCKET"
+	PREV_STATE=/var/lib/nagioschecks/check_redis_${SOCKET//\//}_$DB
+else
+	OPTS="-h $HOST -p $PORT"
+	PREV_STATE=/var/lib/nagioschecks/check_redis_${HOST}_${PORT}_$DB
+fi
+
+if [[ $PASSWORD ]]; then
+	OPTS="$OPTS -a $PASSWORD"
+fi
+
+# This doesn't really have any effect, because we just run the info command.
+if [[ $DB ]]; then
+	OPTS="$OPTS -n $DB"
+fi
+
+# redis-cli just prints a message on stderr if the connection fails.
+INFO=$(redis-cli $OPTS info 2>/dev/null)
+
+# So when nothing was captured from stdout, it's bad.
+if [[ -z $INFO ]]; then
+	echo "CRITICAL - Failed to connect to Redis"
+	exit $STATE_CRITICAL
+fi
+
+# Try to load the previously saved state.
+if [ -f $PREV_STATE ]; then
+	PREV_MTIME=$(stat -c %Y $PREV_STATE)
+	. $PREV_STATE
+fi
+
+# Determine the current state, save it for the next run, and load it.
+STATE=$(sed -nr 's/\r//;/^db/!s/^([^:]*):(.*)$/\U\1\E=\2/p;/^db'$DB\
+'/{s/[^:]*:([^,]*),(.*)/\U\1\n\2/p}' <<< "$INFO")
+sed 's/^/PREV_/' <<< "$STATE" > $PREV_STATE
+eval $(sed 's/^/CUR_/' <<< "$STATE")
+
+# In case of a first run or a restart, average over the uptime.
+if [[ $PREV_UPTIME_IN_SECONDS &&
+		$PREV_UPTIME_IN_SECONDS -lt $CUR_UPTIME_IN_SECONDS ]]; then
+	SECONDS=$(($(date +%s) - PREV_MTIME))
+else
+	SECONDS=$CUR_UPTIME_IN_SECONDS
+	# Forget all the values from before the restart.
+	eval unset $(set | sed -n /^\\\(PREV_[^=]*\\\).*/s//\\1/p)
+fi
+
+COMMANDS_S=$(per_second TOTAL_COMMANDS_PROCESSED)
+HITS_S=$(per_second KEYSPACE_HITS)
+MISSES_S=$(per_second KEYSPACE_MISSES)
+EXPIRED_S=$(per_second EXPIRED_KEYS)
+EVICTED_S=$(per_second EVICTED_KEYS)
+
+echo "OK - \
+$COMMANDS_S commands/s, $HITS_S hits/s, $MISSES_S misses/s, \
+$EXPIRED_S expired/s, $EVICTED_S evicted/s - \
+$CUR_KEYS keys, $CUR_EXPIRES expires - \
+$(bytes_to_human_bi $CUR_USED_MEMORY) used, \
+$(bytes_to_human_bi $CUR_USED_MEMORY_PEAK) peak|\
+commands=$COMMANDS_S hits=$HITS_S misses=$MISSES_S \
+expired=$EXPIRED_S evicted=$EVICTED_S \
+keys=$CUR_KEYS expires=$CUR_EXPIRES \
+memory=${CUR_USED_MEMORY}B memoryRss=${CUR_USED_MEMORY_RSS}B \
+aof=${CUR_AOF_CURRENT_SIZE}B"
+
+exit $STATE_OK
