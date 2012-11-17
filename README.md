@@ -10,5 +10,6 @@ What's here:
 - `check_du_lftp` checks disk usage through lftp for any supported url. Supports warning and critical thresholds defined like 100 MB or 1.2 Gib. It (obviously) depends on `lftp`.
 - `check_backup` opens a location through lftp and checks if a file exists, and optionally also if it's too old or too small. And it again depends on `lftp`.
 - `check_redis` checks if Redis is alive and reports its statistics, some of them (hits, misses, etc.) averaged since the last invocation (to hits per second, misses per second, etc.).
+- `check_apc` checks PHP APC available memory, hit ratio, expunges, etc. Make this script available and point the check to it: `<?php foreach(apc_sma_info(true) + apc_cache_info('', true) as $k => $v) { echo "$k=$v\n"; }`. Depends on `curl`.
 
 All of the checks require `bash` and `bc`.

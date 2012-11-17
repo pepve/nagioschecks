@@ -1,0 +1,60 @@
+#!/bin/bash
+
+. $(dirname $0)/lib.sh
+
+while getopts "u:w:c:" OPT; do
+	case $OPT in
+		u) URL=$OPTARG ;;
+		w) WARNING_PC=$OPTARG ;;
+		c) CRITICAL_PC=$OPTARG ;;
+	esac
+done
+
+if [[ -z $URL || -z $WARNING_PC || -z $CRITICAL_PC ]]; then
+	echo "Usage: $0 -u <url> -w <warning percentage> -c <critical percentage>"
+	exit $STATE_UNKNOWN
+fi
+
+INFO="$(curl -sf "$URL")"
+
+if [ $? -gt 0 ]; then
+	echo "Failed to fetch APC information"
+	exit $STATE_CRITICAL
+fi
+
+# Inject sanitized info as prefixed variables
+eval "$(sed -nr 's/^([a-z_]+)=([a-z0-9 ]+)$/APC_\U\1\E="\2"/ip' <<< "$INFO")"
+
+if [ $APC_NUM_MISSES -gt 0 ]; then
+	RATIO=$((100 * APC_NUM_HITS / (APC_NUM_HITS + APC_NUM_MISSES)))
+else
+	RATIO=0
+fi
+
+TOTAL=$((APC_NUM_SEG * APC_SEG_SIZE))
+USED=$((TOTAL - APC_AVAIL_MEM))
+USED_PC=$((100 * USED / TOTAL))
+
+INFO="$USED_PC% used, $(bytes_to_human_bi $USED) of \
+$(bytes_to_human_bi $TOTAL), $APC_NUM_ENTRIES entries, hit ratio $RATIO%"
+
+# An expunge is triggered when the cache is full. With the default settings
+# this clears all cache items. That's bad.
+if [ $APC_EXPUNGES -gt 0 ]; then
+	INFO="$APC_EXPUNGES EXPUNGES, $INFO"
+	STATE=CRITICAL
+else
+	INFO="$INFO, no expunges"
+	if [ $USED_PC -ge $CRITICAL_PC ]; then
+		STATE=CRITICAL;
+	elif [ $USED_PC -ge $WARNING_PC ]; then
+		STATE=WARNING;
+	else
+		STATE=OK;
+	fi
+fi
+
+echo "$INFO|used=${USED}B available=${APC_AVAIL_MEM}B \
+entries=${APC_NUM_ENTRIES} ratio=${RATIO}"
+
+eval exit \$STATE_$STATE
