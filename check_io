@@ -2,6 +2,14 @@
 
 . $(dirname $0)/lib.sh
 
+# Simple function to calculate and round with bc
+function calcr() {
+	bc -l <<< "
+		result = $1
+		scale = 23 - length(result)
+		result / 1"
+}
+
 if [ -z "$1" -o "$2" ]; then
 	echo "Usage: $0 <device>"
 	exit $STATE_UNKNOWN
@@ -21,11 +29,20 @@ cat /sys/block/$DEV/stat > $STATE
 CURRENT=($(mtime_cat $STATE))
 
 TIME=$((${CURRENT[0]} - ${LAST[0]}))
-READ=$(((${CURRENT[3]} - ${LAST[3]}) * 512 / TIME))
-WRTN=$(((${CURRENT[7]} - ${LAST[7]}) * 512 / TIME))
 
-echo "OK - $(bytes_to_human $READ)/s read - $(bytes_to_human $WRTN)/s written - \
+READ_BYTES=$(((${CURRENT[3]} - ${LAST[3]}) * 512 / TIME))
+WRTN_BYTES=$(((${CURRENT[7]} - ${LAST[7]}) * 512 / TIME))
+
+READ_IOPS=$(calcr "(${CURRENT[1]} - ${LAST[1]}) / $TIME")
+WRTN_IOPS=$(calcr "(${CURRENT[5]} - ${LAST[5]}) / $TIME")
+TOTAL_IOPS=$(calcr "(${CURRENT[1]} - ${LAST[1]} + \
+	${CURRENT[5]} - ${LAST[5]}) / $TIME")
+
+echo "$TOTAL_IOPS IOPS - \
+read $(bytes_to_human $READ_BYTES)/s, $READ_IOPS IOPS - \
+written $(bytes_to_human $WRTN_BYTES)/s, $WRTN_IOPS IOPS - \
 averaged over $((TIME / 60)):$(printf %02d $((TIME % 60))) minutes|\
-read=${READ}B wrtn=${WRTN}B"
+read=${READ_BYTES}B wrtn=${WRTN_BYTES}B readop=$READ_IOPS wrtnop=$WRTN_IOPS \
+iops=$TOTAL_IOPS"
 
 exit $STATE_OK
