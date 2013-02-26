@@ -7,8 +7,6 @@ What's here:
 - `check_io` doesn't check anything but returns bytes/iops read/written for a block device since the last invocation. `/sys/block/*/stat` is used as the source.
 - `check_if` also doesn't check anything, it returns bytes received and sent for an interface since the last invocation. `/sys/class/net/*/statistics/*` is used as the source.
 - `check_fpm` checks if a PHP-FPM pool is responsive. The number of idle and active processes and the queue (maximum) length are reported. It requires `xmlstarlet` and the `cgi-fcgi` binary (package fcgi on EPEL, libfcgi0ldbl on Debian).
-- `check_du_lftp` checks disk usage through lftp for any supported url. Supports warning and critical thresholds defined like 100 MB or 1.2 Gib. It (obviously) depends on `lftp`.
-- `check_backup` opens a location through lftp and checks if a file exists, and optionally also if it's too old or too small. And it again depends on `lftp`.
 - `check_redis` checks if Redis is alive and reports its statistics, some of them (hits, misses, etc.) averaged since the last invocation (to hits per second, misses per second, etc.).
 - `check_apc` checks PHP APC available memory, hit ratio, expunges, etc. Make this script available and point the check to it: `<?php foreach(apc_sma_info(true) + apc_cache_info('', true) as $k => $v) { echo "$k=$v\n"; }`. Depends on `curl`.
 
