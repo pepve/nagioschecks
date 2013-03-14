@@ -1,0 +1,39 @@
+#!/usr/bin/python
+
+import boto.ec2
+import operator
+import sys
+from datetime import datetime, timedelta
+
+if len(sys.argv) != 4:
+    print 'Usage: %s <region> <volume id> <max age in hours>' % sys.argv[0]
+    sys.exit(1)
+
+region = sys.argv[1]
+volume_id = sys.argv[2]
+max_age = timedelta(hours=int(sys.argv[3]))
+connection = boto.ec2.connect_to_region(region)
+
+if not connection:
+    print 'Failed to connect to AWS'
+    sys.exit(2)
+
+snapshots = connection.get_all_snapshots(
+        owner='self', filters={'volume-id': volume_id, 'status': 'completed'})
+
+if not snapshots:
+    print 'No completed snapshots found'
+    sys.exit(2)
+
+last_snapshot = sorted(snapshots, key=operator.attrgetter('start_time'))[-1]
+age = datetime.utcnow() - datetime.strptime(
+        last_snapshot.start_time, '%Y-%m-%dT%H:%M:%S.000Z')
+
+if age > max_age:
+    print 'Snapshot too old: %s hours' % str(age).split(':')[0]
+    sys.exit(2)
+else:
+    print 'Snapshot young enough'
+    sys.exit(0)
+
+# vim: expandtab tabstop=4

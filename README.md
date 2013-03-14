@@ -9,5 +9,7 @@ What's here:
 - `check_fpm` checks if a PHP-FPM pool is responsive. The number of idle and active processes and the queue (maximum) length are reported. It requires `xmlstarlet` and the `cgi-fcgi` binary (package fcgi on EPEL, libfcgi0ldbl on Debian).
 - `check_redis` checks if Redis is alive and reports its statistics, some of them (hits, misses, etc.) averaged since the last invocation (to hits per second, misses per second, etc.).
 - `check_apc` checks PHP APC available memory, hit ratio, expunges, etc. Make this script available and point the check to it: `<?php foreach(apc_sma_info(true) + apc_cache_info('', true) as $k => $v) { echo "$k=$v\n"; }`. Depends on `curl`.
+- `check_ebs_snapshot` checks whether an Amazon EBS volume has a recent snapshot. Requires [Boto](http://docs.pythonboto.org/) and assumes AWS credentials are set through its configuration.
+- `check_backup_s3` checks if a location on S3 contains a timestamped backup, and optionally its age and size. Same dependency on Boto.
 
 All of the checks require `bash` and `bc`.

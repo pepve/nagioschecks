@@ -1,0 +1,54 @@
+#!/usr/bin/python
+
+import boto
+import re
+import sys
+from datetime import datetime, timedelta
+
+if len(sys.argv) != 5:
+    print ('Usage: %s <bucket name> <prefix> <max age in hours> ' +
+            '<min size in GiB>') % sys.argv[0]
+    sys.exit(1)
+
+bucket_name = sys.argv[1]
+prefix = sys.argv[2]
+max_age = timedelta(hours=int(sys.argv[3])) if int(sys.argv[3]) else None
+min_size = int(sys.argv[4]) * 1024 ** 3
+connection = boto.connect_s3()
+
+if not connection:
+    print 'Failed to connect to AWS'
+    sys.exit(2)
+
+try:
+    bucket = connection.get_bucket(bucket_name)
+except boto.exception.S3ResponseError:
+    print 'Failed to access bucket'
+    sys.exit(2)
+
+backup = None
+for backup in bucket.list(prefix + '/', '/'):
+    pass
+
+if not backup:
+    print 'Backup not found'
+    sys.exit(2)
+
+if max_age:
+    match = re.search('\d{8}_\d{6}', backup.name)
+    if not match:
+        print 'Backup timestamp not recognized: %s' % backup.name
+        sys.exit(2)
+    age = datetime.utcnow() - datetime.strptime(match.group(), '%Y%m%d_%H%M%S')
+    if age > max_age:
+        print 'Backup too old: %s hours' % str(age).split(':')[0]
+        sys.exit(2)
+
+if min_size and backup.size < min_size:
+    print 'Backup too small: %s GiB' % (backup.size / 1024 ** 3)
+    sys.exit(2)
+
+print 'Backup is fine'
+sys.exit(0)
+
+# vim: expandtab tabstop=4
