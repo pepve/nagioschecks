@@ -11,5 +11,6 @@ What's here:
 - `check_apc` checks PHP APC available memory, hit ratio, expunges, etc. Make this script available and point the check to it: `<?php foreach(apc_sma_info(true) + apc_cache_info('', true) as $k => $v) { echo "$k=$v\n"; }`. Depends on `curl`.
 - `check_ebs_snapshot` checks whether an Amazon EBS volume has a recent snapshot. Requires [Boto](http://docs.pythonboto.org/) and assumes AWS credentials are set through its configuration.
 - `check_backup_s3` checks if a location on S3 contains a timestamped backup, and optionally its age and size. Same dependency on Boto.
+- `check_rds_storage` checks the free storage for a given RDS instance. Same dependency on Boto.
 
 All of the checks require `bash` and `bc`.
