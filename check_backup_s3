@@ -11,7 +11,7 @@ if len(sys.argv) != 5:
     sys.exit(1)
 
 bucket_name = sys.argv[1]
-prefix = sys.argv[2]
+raw_prefix = sys.argv[2]
 max_age = timedelta(hours=int(sys.argv[3])) if int(sys.argv[3]) else None
 min_size = int(sys.argv[4]) * 1024 ** 3
 connection = boto.connect_s3()
@@ -26,29 +26,44 @@ except boto.exception.S3ResponseError:
     print 'Failed to access bucket'
     sys.exit(2)
 
-backup = None
-for backup in bucket.list(prefix + '/', '/'):
-    pass
+if raw_prefix[-2:] == '/*':
+    prefixes = [p.name[:-1] for p in bucket.list(raw_prefix[:-2] + '/', '/')]
+else:
+    prefixes = [raw_prefix]
 
-if not backup:
-    print 'Backup not found'
-    sys.exit(2)
+for prefix in prefixes:
+    latest = None
+    for backup in bucket.list(prefix + '/', '/'):
+        match = re.search('\d{8}_\d{6}', backup.name)
+        if not match:
+            print 'Backup "%s" timestamp not recognized: %s' % (prefix,
+                                                                backup.name)
+            sys.exit(2)
+        backup.date = match.group()
+        if not latest or backup.date > latest.date:
+            latest = backup
 
-if max_age:
-    match = re.search('\d{8}_\d{6}', backup.name)
-    if not match:
-        print 'Backup timestamp not recognized: %s' % backup.name
+    if not latest:
+        print 'Backup "%s" not found' % prefix
         sys.exit(2)
-    age = datetime.utcnow() - datetime.strptime(match.group(), '%Y%m%d_%H%M%S')
-    if age > max_age:
-        print 'Backup too old: %s hours' % str(age).split(':')[0]
+
+    if max_age:
+        age = datetime.utcnow() - datetime.strptime(latest.date,
+                                                    '%Y%m%d_%H%M%S')
+        if age > max_age:
+            print 'Backup "%s" too old: %s hours' % (prefix,
+                                                     str(age).split(':')[0])
+            sys.exit(2)
+
+    if min_size and latest.size < min_size:
+        print 'Backup "%s" too small: %s GiB' % (prefix,
+                                                 latest.size / 1024 ** 3)
         sys.exit(2)
 
-if min_size and backup.size < min_size:
-    print 'Backup too small: %s GiB' % (backup.size / 1024 ** 3)
-    sys.exit(2)
-
-print 'Backup is fine'
+if len(prefixes) == 1:
+    print 'Backup is fine'
+else:
+    print '%d backups are fine' % len(prefixes)
 sys.exit(0)
 
 # vim: expandtab tabstop=4
