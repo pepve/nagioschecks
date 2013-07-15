@@ -5,15 +5,16 @@ import re
 import sys
 from datetime import datetime, timedelta
 
-if len(sys.argv) != 5:
+if len(sys.argv) < 5:
     print ('Usage: %s <bucket name> <prefix> <max age in hours> ' +
-            '<min size in GiB>') % sys.argv[0]
+            '<min size in GiB> [<min count>]') % sys.argv[0]
     sys.exit(1)
 
 bucket_name = sys.argv[1]
 raw_prefix = sys.argv[2]
 max_age = timedelta(hours=int(sys.argv[3])) if int(sys.argv[3]) else None
 min_size = int(sys.argv[4]) * 1024 ** 3
+min_count = int(sys.argv[5]) if len(sys.argv) >= 6 else None
 connection = boto.connect_s3()
 
 if not connection:
@@ -26,8 +27,11 @@ except boto.exception.S3ResponseError:
     print 'Failed to access bucket'
     sys.exit(2)
 
-if raw_prefix[-2:] == '/*':
-    prefixes = [p.name[:-1] for p in bucket.list(raw_prefix[:-2] + '/', '/')]
+if min_count != None:
+    prefixes = [p.name[:-1] for p in bucket.list(raw_prefix + '/', '/')]
+    if len(prefixes) < min_count:
+        print 'Not enough backups found: %d' % len(prefixes)
+        sys.exit(2)
 else:
     prefixes = [raw_prefix]
 
