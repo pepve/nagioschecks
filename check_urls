@@ -1,0 +1,50 @@
+#!/bin/bash
+
+. $(dirname $0)/lib.sh
+
+function size() {
+	stat --format=%s $1 2>/dev/null
+}
+
+DOWN=
+ABERRANT=
+UP=0
+
+for URL in $@; do
+	FILE=/var/lib/nagioschecks/check_urls_${URL//\//_}
+	TEMP=$(mktemp)
+
+	curl --silent --fail --location --output $TEMP $URL
+
+	if [[ $? != 0 || ! $(size $TEMP) > 0 ]]; then
+		DOWN="$DOWN $URL"
+	elif [[ ! -e $FILE ]]; then
+		cp $TEMP $FILE
+		UP=$((UP + 1))
+	else
+		DELTA=$((100 * $(size $TEMP) / $(size $FILE)))
+		cp $TEMP $FILE
+
+		if [[ $DELTA -lt 25 ]]; then
+			ABERRANT="$ABERRANT $URL $DELTA% (${TEMP#/tmp/})"
+		else
+			UP=$((UP + 1))
+		fi
+	fi
+done
+
+INFO="$UP urls up"
+STATUS=$STATE_OK
+
+if [[ $DOWN ]]; then
+	INFO="$INFO, DOWN$DOWN"
+	STATUS=$STATE_CRITICAL
+fi
+
+if [[ $ABERRANT ]]; then
+	INFO="$INFO, ABERRANT$ABERRANT"
+	STATUS=$STATE_CRITICAL
+fi
+
+echo $INFO
+exit $STATUS
