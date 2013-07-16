@@ -7,6 +7,7 @@ function size() {
 }
 
 DOWN=
+TIMEOUT=
 ABERRANT=
 UP=0
 
@@ -14,9 +15,12 @@ for URL in $@; do
 	FILE=/var/lib/nagioschecks/check_urls_${URL//\//_}
 	TEMP=$(mktemp)
 
-	curl --silent --fail --location --output $TEMP $URL
+	curl --silent --fail --max-time 15 --location --output $TEMP $URL
+	CODE=$?
 
-	if [[ $? != 0 || ! $(size $TEMP) > 0 ]]; then
+	if [[ $CODE = 28 ]]; then
+		TIMEOUT="$TIMEOUT $URL"
+	elif [[ $CODE != 0 || ! $(size $TEMP) > 0 ]]; then
 		DOWN="$DOWN $URL"
 	elif [[ ! -e $FILE ]]; then
 		cp $TEMP $FILE
@@ -36,15 +40,12 @@ done
 INFO="$UP urls up"
 STATUS=$STATE_OK
 
-if [[ $DOWN ]]; then
-	INFO="$INFO, DOWN$DOWN"
-	STATUS=$STATE_CRITICAL
-fi
-
-if [[ $ABERRANT ]]; then
-	INFO="$INFO, ABERRANT$ABERRANT"
-	STATUS=$STATE_CRITICAL
-fi
+for TYPE in DOWN TIMEOUT ABERRANT; do
+	if [[ ${!TYPE} ]]; then
+		INFO="$INFO, ${TYPE}${!TYPE}"
+		STATUS=$STATE_CRITICAL
+	fi
+done
 
 echo $INFO
 exit $STATUS
