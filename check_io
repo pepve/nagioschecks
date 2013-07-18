@@ -6,7 +6,11 @@
 function calcr() {
 	bc -l <<< "
 		result = $1
-		scale = 23 - length(result)
+		if (length(result) > 23) {
+			scale = 0
+		} else {
+			scale = 23 - length(result)
+		}
 		result / 1"
 }
 
