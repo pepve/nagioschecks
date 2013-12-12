@@ -59,7 +59,7 @@ fi
 
 # Determine the current state, save it for the next run, and load it.
 STATE=$(sed -nr 's/\r//;/^db/!s/^([^:]*):(.*)$/\U\1\E="\2"/p;/^db'$DB\
-'/{s/[^:]*:([^,]*),(.*)/\U\1\n\2/p}' <<< "$INFO")
+'/{s/[^:]*:([^,]*),([^,]*).*/\U\1\n\2/p}' <<< "$INFO")
 sed 's/^/PREV_/' <<< "$STATE" > $PREV_STATE
 eval $(sed 's/^/CUR_/' <<< "$STATE")
 
