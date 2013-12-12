@@ -15,7 +15,7 @@ for URL in $@; do
 	FILE=/var/lib/nagioschecks/check_urls_${URL//\//_}
 	TEMP=$(mktemp)
 
-	curl --silent --fail --max-time 15 --location --output $TEMP $URL
+	curl --silent --fail --max-time 30 --location --output $TEMP $URL
 	CODE=$?
 
 	if [[ $CODE = 28 ]]; then
